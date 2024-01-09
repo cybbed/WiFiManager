@@ -1,0 +1,10 @@
+﻿---
+BasedOnStyle: LLVM
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterReturnType: None
+ColumnLimit: '120'
+PenaltyReturnTypeOnItsOwnLine: '0'
+TabWidth: '4'
+UseTab: Never
+
+...
