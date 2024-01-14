@@ -49,8 +49,6 @@ void WiFiManager::event_handler(void *arg, esp_event_base_t event_base, int32_t 
 void WiFiManager::wifi_task_handler(void *parameter) {
   WiFiManager *obj = reinterpret_cast<WiFiManager *>(parameter);
 
-  int s_retry_num = 0;
-
   ESP_LOGI(TAG, "WiFi handler started");
 
   while (1) {
@@ -87,39 +85,26 @@ void WiFiManager::wifi_task_handler(void *parameter) {
     } break;
 
     case WIFI_DISCONNECTED_EVENT: {
-      ESP_LOGI(TAG, "WiFi disconnected from AP");
+      ESP_LOGI(TAG, "WiFi disconnected from AP, reconnecting...");
+      ESP_ERROR_CHECK(esp_wifi_connect());
 
-      if (s_retry_num < 20) {
-        ESP_ERROR_CHECK(esp_wifi_connect());
-        s_retry_num++;
-        ESP_LOGI(TAG, "...retring connecting to the AP (%u)", s_retry_num);
-      } else {
-        s_retry_num = 0;
-        ESP_LOGI(TAG, "Failed to connect to the AP. Start SmartConfig");
-
+      if (obj->state == WIFI_MNGR_CONNECTED) {
         auto callback = obj->callbacks[WIFI_DISCONNECTED];
         if (callback) {
           callback(WIFI_DISCONNECTED);
         }
 
-        esp_smartconfig_stop();
-        ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH));
-        smartconfig_start_config_t cfg = SMARTCONFIG_START_CONFIG_DEFAULT();
-        ESP_ERROR_CHECK(esp_smartconfig_start(&cfg));
-
-        obj->state = WIFI_MNGR_PROVISIONING;
+        obj->state = WIFI_MNGR_DISCONNECTED;
       }
     } break;
 
     case WIFI_IP_ASSIGNED_EVENT: {
       ESP_LOGI(TAG, "IP address assigned");
-      if (obj->state == WIFI_MNGR_CONNECTING or obj->state == WIFI_MNGR_PROVISIONING) {
+      if (obj->state != WIFI_MNGR_CONNECTED) {
         auto callback = obj->callbacks[WIFI_CONNECTED];
         if (callback) {
           callback(WIFI_CONNECTED);
         }
-
-        s_retry_num = 0;
 
         obj->state = WIFI_MNGR_CONNECTED;
       }
