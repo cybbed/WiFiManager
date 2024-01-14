@@ -28,8 +28,6 @@ public:
   wifi_error_codes_t set_smartcfg_boot_timeout(size_t timeout);
 
 private:
-  static constexpr char *TAG = "WIFI";
-
   const static inline std::vector<std::string> wifi_events_mapping = {"WIFI_CONNECTED", "WIFI_DISCONNECTED"};
 
   typedef enum {
