@@ -55,85 +55,85 @@ void WiFiManager::wifi_task_handler(void *parameter) {
     EventBits_t ux_bits = xEventGroupWaitBits(obj->event_group, 0xFFFF, true, false, portMAX_DELAY);
     auto wifi_event = static_cast<wifi_sta_events_t>(ux_bits);
     switch (wifi_event) {
-    case WIFI_CONNECTED_EVENT: {
-      ESP_LOGI(TAG, "WiFi Connected to STA");
+      case WIFI_CONNECTED_EVENT: {
+        ESP_LOGI(TAG, "WiFi Connected to STA");
 
-      wifi_config_t wifi_config;
-      esp_err_t ret = esp_wifi_get_config(WIFI_IF_STA, &wifi_config);
-      if (ret == ESP_OK and strlen((const char *)wifi_config.sta.ssid)) {
-        ESP_LOGI(TAG, "Wifi configuration already stored in flash partition called NVS");
-        ESP_LOGI(TAG, "%s", wifi_config.sta.ssid);
-        ESP_LOGI(TAG, "%s", wifi_config.sta.password);
+        wifi_config_t wifi_config;
+        esp_err_t ret = esp_wifi_get_config(WIFI_IF_STA, &wifi_config);
+        if (ret == ESP_OK and strlen((const char *)wifi_config.sta.ssid)) {
+          ESP_LOGI(TAG, "Wifi configuration already stored in flash partition called NVS");
+          ESP_LOGI(TAG, "%s", wifi_config.sta.ssid);
+          ESP_LOGI(TAG, "%s", wifi_config.sta.password);
 
-        ret = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
-        if (ret != ESP_OK) {
-          ESP_LOGE(TAG, "%u. Error %u", __LINE__, ret);
-          continue;
+          ret = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+          if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "%u. Error %u", __LINE__, ret);
+            continue;
+          }
+
+          ESP_ERROR_CHECK(esp_wifi_connect());
+
+          obj->state = WIFI_MNGR_CONNECTING;
+        } else {
+          ESP_LOGI(TAG, "Wifi configuration not found in flash partition called NVS. Error %u", ret);
+          ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH));
+          smartconfig_start_config_t cfg = SMARTCONFIG_START_CONFIG_DEFAULT();
+          ESP_ERROR_CHECK(esp_smartconfig_start(&cfg));
+
+          obj->state = WIFI_MNGR_PROVISIONING;
         }
+      } break;
 
+      case WIFI_DISCONNECTED_EVENT: {
+        ESP_LOGI(TAG, "WiFi disconnected from AP, reconnecting...");
         ESP_ERROR_CHECK(esp_wifi_connect());
 
-        obj->state = WIFI_MNGR_CONNECTING;
-      } else {
-        ESP_LOGI(TAG, "Wifi configuration not found in flash partition called NVS. Error %u", ret);
-        ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH));
-        smartconfig_start_config_t cfg = SMARTCONFIG_START_CONFIG_DEFAULT();
-        ESP_ERROR_CHECK(esp_smartconfig_start(&cfg));
+        if (obj->state == WIFI_MNGR_CONNECTED) {
+          auto callback = obj->callbacks[WIFI_DISCONNECTED];
+          if (callback) {
+            callback(WIFI_DISCONNECTED);
+          }
 
-        obj->state = WIFI_MNGR_PROVISIONING;
-      }
-    } break;
-
-    case WIFI_DISCONNECTED_EVENT: {
-      ESP_LOGI(TAG, "WiFi disconnected from AP, reconnecting...");
-      ESP_ERROR_CHECK(esp_wifi_connect());
-
-      if (obj->state == WIFI_MNGR_CONNECTED) {
-        auto callback = obj->callbacks[WIFI_DISCONNECTED];
-        if (callback) {
-          callback(WIFI_DISCONNECTED);
+          obj->state = WIFI_MNGR_DISCONNECTED;
         }
+      } break;
 
-        obj->state = WIFI_MNGR_DISCONNECTED;
-      }
-    } break;
+      case WIFI_IP_ASSIGNED_EVENT: {
+        ESP_LOGI(TAG, "IP address assigned");
+        if (obj->state != WIFI_MNGR_CONNECTED) {
+          auto callback = obj->callbacks[WIFI_CONNECTED];
+          if (callback) {
+            callback(WIFI_CONNECTED);
+          }
 
-    case WIFI_IP_ASSIGNED_EVENT: {
-      ESP_LOGI(TAG, "IP address assigned");
-      if (obj->state != WIFI_MNGR_CONNECTED) {
-        auto callback = obj->callbacks[WIFI_CONNECTED];
-        if (callback) {
-          callback(WIFI_CONNECTED);
+          obj->state = WIFI_MNGR_CONNECTED;
         }
+      } break;
 
-        obj->state = WIFI_MNGR_CONNECTED;
-      }
-    } break;
+      case WIFI_SMARTCONFIG_IP_SET_EVENT: {
+        wifi_config_t wifi_config;
+        memcpy(wifi_config.sta.ssid, obj->ssid.data(), sizeof(wifi_config.sta.ssid));
+        memcpy(wifi_config.sta.password, obj->password.data(), sizeof(wifi_config.sta.password));
+        if (obj->bssid.empty() == false) {
+          wifi_config.sta.bssid_set = true;
+          memcpy(wifi_config.sta.bssid, obj->bssid.data(), sizeof(wifi_config.sta.bssid));
+        }
+        ESP_LOG_BUFFER_HEX(TAG, wifi_config.sta.ssid, strlen((char *)wifi_config.sta.ssid));
+        ESP_LOG_BUFFER_HEX(TAG, wifi_config.sta.password, strlen((char *)wifi_config.sta.password));
 
-    case WIFI_SMARTCONFIG_IP_SET_EVENT: {
-      wifi_config_t wifi_config;
-      memcpy(wifi_config.sta.ssid, obj->ssid.data(), sizeof(wifi_config.sta.ssid));
-      memcpy(wifi_config.sta.password, obj->password.data(), sizeof(wifi_config.sta.password));
-      if (obj->bssid.empty() == false) {
-        wifi_config.sta.bssid_set = true;
-        memcpy(wifi_config.sta.bssid, obj->bssid.data(), sizeof(wifi_config.sta.bssid));
-      }
-      ESP_LOG_BUFFER_HEX(TAG, wifi_config.sta.ssid, strlen((char *)wifi_config.sta.ssid));
-      ESP_LOG_BUFFER_HEX(TAG, wifi_config.sta.password, strlen((char *)wifi_config.sta.password));
+        ESP_ERROR_CHECK(esp_wifi_disconnect());
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+        ESP_ERROR_CHECK(esp_wifi_connect());
+      } break;
 
-      ESP_ERROR_CHECK(esp_wifi_disconnect());
-      ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-      ESP_ERROR_CHECK(esp_wifi_connect());
-    } break;
+      case WIFI_SMARTCONFIG_DONE_EVENT: {
+        ESP_LOGI(TAG, "smartconfig over");
+        esp_smartconfig_stop();
+      } break;
 
-    case WIFI_SMARTCONFIG_DONE_EVENT: {
-      ESP_LOGI(TAG, "smartconfig over");
-      esp_smartconfig_stop();
-    } break;
-
-    default: {
-      ESP_LOGI(TAG, "WiFi event %d", wifi_event);
-    } break;
+      default: {
+        ESP_LOGI(TAG, "WiFi event %d", wifi_event);
+      } break;
     }
   }
 }

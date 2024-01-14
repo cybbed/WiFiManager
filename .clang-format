@@ -6,5 +6,6 @@ ColumnLimit: '120'
 PenaltyReturnTypeOnItsOwnLine: '0'
 TabWidth: '4'
 UseTab: Never
+IndentCaseLabels: true
 
 ...
