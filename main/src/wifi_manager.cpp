@@ -35,11 +35,12 @@ void WiFiManager::event_handler(void *arg, esp_event_base_t event_base, int32_t 
     ESP_LOGI(TAG, "Found channel");
   } else if (event_base == SC_EVENT && event_id == SC_EVENT_GOT_SSID_PSWD) {
     ESP_LOGI(TAG, "Got SSID and password");
-    smartconfig_event_got_ssid_pswd_t *evt = (smartconfig_event_got_ssid_pswd_t *)event_data;
-    obj->ssid.assign(evt->ssid, evt->ssid + 32);
-    obj->password.assign(evt->password, evt->password + 64);
+    smartconfig_event_got_ssid_pswd_t *evt = (smartconfig_event_got_ssid_pswd_t *) event_data;
+    // esp_smartconfig.h defines max size for ssid - 32, pass - 64, bssid - 6
+    obj->ssid.assign(evt->ssid, evt->ssid + strnlen((char *) evt->ssid, 32));
+    obj->password.assign(evt->password, evt->password + strnlen((char *) evt->password, 64));
     if (evt->bssid_set == true) {
-      obj->bssid.assign(evt->bssid, evt->bssid + 6);
+      obj->bssid.assign(evt->bssid, evt->bssid + strnlen((char *) evt->bssid, 6));
     }
     xEventGroupClearBits(obj->event_group, WiFiManager::WIFI_SMARTCONFIG_IN_PROGRESS);
     xEventGroupSetBits(obj->event_group, WiFiManager::WIFI_SMARTCONFIG_IP_SET_EVENT);
