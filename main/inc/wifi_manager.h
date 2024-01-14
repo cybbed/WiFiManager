@@ -22,9 +22,10 @@ public:
 
   static std::string wifi_event_to_string(wifi_events_t event);
 
-  WiFiManager() : task_handle(0), state(WIFI_MNGR_READY){};
+  WiFiManager() : task_handle(0), state(WIFI_MNGR_READY), smart_cfg_boot_counter(0), smart_cfg_boot_timeout(30) {};
   wifi_error_codes_t initialize();
   wifi_error_codes_t register_event(wifi_events_t event, std::function<void(wifi_events_t event)>);
+  wifi_error_codes_t set_smartcfg_boot_timeout(size_t timeout);
 
 private:
   static constexpr char *TAG = "WIFI";
@@ -36,7 +37,8 @@ private:
     WIFI_DISCONNECTED_EVENT = BIT1,
     WIFI_IP_ASSIGNED_EVENT = BIT2,
     WIFI_SMARTCONFIG_IP_SET_EVENT = BIT3,
-    WIFI_SMARTCONFIG_DONE_EVENT = BIT4,
+    WIFI_SMARTCONFIG_IN_PROGRESS = BIT4,
+    WIFI_SMARTCONFIG_DONE_EVENT = BIT5,
     WIFI_LAST_EVENT = 0xFFFF
   } wifi_sta_events_t;
 
@@ -61,4 +63,7 @@ private:
   std::vector<uint8_t> ssid;
   std::vector<uint8_t> password;
   std::vector<uint8_t> bssid;
+
+  size_t smart_cfg_boot_counter;
+  size_t smart_cfg_boot_timeout;
 };
